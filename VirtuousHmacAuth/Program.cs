@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
+using System.Configuration;
 using System.Net.Http;
 
 namespace VirtuousHmacAuth
@@ -7,12 +9,11 @@ namespace VirtuousHmacAuth
     {
         static void Main(string[] args)
         {
-            var virtuousApi = "https://api.virtuoussoftware.com";
-
-            var applicationKey = "REPLACE_ME";
-
+            var virtuousApi = ConfigurationManager.AppSettings["VIRTUOUS_API"];
             var requestMethod = "POST";
-            var requestUrl = "/api/gift/transaction/";
+            var requestUrl = "/api/v2/gift/transaction/";
+
+            var applicationKey = ConfigurationManager.AppSettings["VIRTUOUS_CUSTOMER_APPLICATION_KEY"];
 
             var virtuousHmacAuth = new VirtuousHmacAuth();
             var hmacHeader = virtuousHmacAuth.GenerateHmacHeader(applicationKey, requestMethod, requestUrl);
@@ -20,13 +21,27 @@ namespace VirtuousHmacAuth
             HttpClient client = new HttpClient();
             client.BaseAddress = new Uri(virtuousApi);
             client.DefaultRequestHeaders.Add("Authorization", hmacHeader);
-            client.DefaultRequestHeaders.Add("Content-Type", "application/json");
+            client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 
-            StringContent postData = new StringContent("{ id: \"Some Json Object\" }");
+            var giftTransaction = new GiftTransaction()
+            {
+                TransactionId = Guid.NewGuid().ToString(),
+                Contact = new Contact()
+                {
+                    Firstname = "Bob",
+                    Lastname = "Loblaw"
+                },
+                GiftDate = DateTime.Now.ToShortDateString(),
+                GiftType = "Credit",
+                Amount = "50.00",
+                CreditCardType = "Visa"
+            };
 
-            var postAsync = client.PostAsync(requestUrl, postData);
-            postAsync.RunSynchronously();
-            var result = postAsync.Result;
+            var giftTransactionJson = JsonConvert.SerializeObject(giftTransaction);
+
+            StringContent postData = new StringContent(giftTransactionJson, System.Text.Encoding.UTF8, "application/json");
+
+            var result = client.PostAsync(requestUrl, postData).Result;
 
             Console.WriteLine("Status Code: {0}", result.StatusCode);
             Console.WriteLine("Content: {0}", result.Content);
